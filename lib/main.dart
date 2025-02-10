@@ -39,7 +39,12 @@ class App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'Photo Viewer', home: GalleryPage());
+    return MaterialApp(
+        title: 'Photo Viewer',
+        home: BlocProvider(
+          create: (_) => GalleryCubit(),
+          child: const GalleryPage(),
+        ));
   }
 }
 
@@ -70,6 +75,8 @@ class GalleryCubit extends Cubit<GalleryState> {
       newState.selected = isTagging && newState.url == url;
       newPhotoStates.add(newState);
     }
+
+    emit(GalleryState(isTagging: isTagging, photoStates: newPhotoStates));
   }
 
   void onPhotoSelect(String url, bool selected) {
