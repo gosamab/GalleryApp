@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:mobx/mobx.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
+
+part 'main.g.dart';
 
 void main() {
-  runApp(ChangeNotifierProvider(
-    create: (context) => GalleryModel(),
-    child: const App(),
-  ));
+  runApp(const App());
 }
 
 const List<String> urls = [
@@ -37,43 +37,53 @@ class App extends StatelessWidget {
   }
 }
 
-class GalleryModel extends ChangeNotifier {
-  bool isTagging = false;
+final tags = {"all", "nature", "cats"};
 
-  List<PhotoState> photoStates =
-      List.of(urls.map((url) => PhotoState(url: url, tags: {})));
+class GalleryStore = GalleryStoreBase with _$GalleryStore;
 
-  Set<String> tags = {"all", "nature", "cats"};
+var galleryStore = GalleryStore();
 
+abstract class GalleryStoreBase with Store {
+  @observable
+  var isTagging = false;
+
+  @observable
+  var photoStates =
+      List.of(urls.map((url) => Observable(PhotoState(url: url, tags: {}))));
+
+  @action
   void toggleTagging(String? url) {
     isTagging = !isTagging;
     for (var ps in photoStates) {
-      ps.selected = isTagging && ps.url == url;
+      ps.value.selected = isTagging && ps.value.url == url;
+      ps.reportChanged();
     }
-    notifyListeners();
   }
 
+  @action
   void onPhotoSelect(String url, bool selected) {
     for (var ps in photoStates) {
-      if (ps.url == url) ps.selected = selected;
+      if (ps.value.url == url) ps.value.selected = true;
+      ps.reportChanged();
     }
-    notifyListeners();
   }
 
+  @action
   void selectTag(String tag) {
     if (isTagging) {
       if (tag != "all") {
         for (var ps in photoStates) {
-          if (ps.selected) ps.tags.add(tag);
+          if (ps.value.selected) ps.value.tags.add(tag);
+          ps.reportChanged();
         }
       }
       toggleTagging(null);
     } else {
       for (var ps in photoStates) {
-        ps.display = tag == "all" || ps.tags.contains(tag);
+        ps.value.display = tag == "all" || ps.value.tags.contains(tag);
+        ps.reportChanged();
       }
     }
-    notifyListeners();
   }
 }
 
@@ -84,32 +94,31 @@ class GalleryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<GalleryModel>(
-      builder: (context, gallery, child) => Scaffold(
-        appBar: AppBar(title: Text(title)),
-        body: GridView.count(
-            primary: false,
-            crossAxisCount: 2,
-            children: List.of(
-              gallery.photoStates
-                  .where((ps) => ps.display)
-                  .map((state) => Photo(
-                        state: state,
-                        selectable: gallery.isTagging,
-                        onLongPress: gallery.toggleTagging,
-                        onSelect: gallery.onPhotoSelect,
-                      )),
-            )),
-        drawer: Drawer(
-          child: ListView(
-            children: List.of(gallery.tags.map((t) => ListTile(
-                  title: Text(t),
-                  onTap: () {
-                    gallery.selectTag(t);
-                    Navigator.of(context).pop();
-                  },
-                ))),
-          ),
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Observer(
+          builder: (_) => GridView.count(
+              primary: false,
+              crossAxisCount: 2,
+              children: List.of(
+                galleryStore.photoStates
+                    .where((ps) => ps.value.display)
+                    .map((state) => Photo(
+                          state: state.value,
+                          selectable: galleryStore.isTagging,
+                          onLongPress: galleryStore.toggleTagging,
+                          onSelect: galleryStore.onPhotoSelect,
+                        )),
+              ))),
+      drawer: Drawer(
+        child: ListView(
+          children: List.of(tags.map((t) => ListTile(
+                title: Text(t),
+                onTap: () {
+                  galleryStore.selectTag(t);
+                  Navigator.of(context).pop();
+                },
+              ))),
         ),
       ),
     );
